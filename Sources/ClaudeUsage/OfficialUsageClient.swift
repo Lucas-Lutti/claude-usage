@@ -1,0 +1,70 @@
+import Foundation
+import Security
+
+/// Busca a porcentagem oficial da janela de 5h usando o login OAuth do Claude Code CLI,
+/// se ele existir nesta máquina (Keychain "Claude Code-credentials" ou ~/.claude/.credentials.json).
+/// O token nunca sai da máquina a não ser para api.anthropic.com.
+actor OfficialUsageClient {
+    private var cachedToken: String?
+    private var unavailable = false
+
+    func fetch() async -> OfficialUsage? {
+        guard let token = cachedToken ?? loadToken() else { return nil }
+        cachedToken = token
+
+        var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
+        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        req.timeoutInterval = 15
+
+        guard let (data, resp) = try? await URLSession.shared.data(for: req),
+              let http = resp as? HTTPURLResponse else { return nil }
+        if http.statusCode == 401 { cachedToken = nil; return nil }
+        guard http.statusCode == 200,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let five = json["five_hour"] as? [String: Any],
+              let util = (five["utilization"] as? NSNumber)?.doubleValue else { return nil }
+
+        let seven = json["seven_day"] as? [String: Any]
+        return OfficialUsage(fiveHour: util,
+                             fiveHourReset: Self.date(five["resets_at"]),
+                             sevenDay: (seven?["utilization"] as? NSNumber)?.doubleValue,
+                             sevenDayReset: Self.date(seven?["resets_at"]),
+                             fetchedAt: Date())
+    }
+
+    private func loadToken() -> String? {
+        if unavailable { return nil }
+        let file = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".claude/.credentials.json")
+        if let data = try? Data(contentsOf: file), let t = Self.token(in: data) { return t }
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "Claude Code-credentials",
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne,
+        ]
+        var out: CFTypeRef?
+        if SecItemCopyMatching(query as CFDictionary, &out) == errSecSuccess,
+           let data = out as? Data, let t = Self.token(in: data) {
+            return t
+        }
+        unavailable = true   // não fica tentando o Keychain a cada atualização
+        return nil
+    }
+
+    func reset() { unavailable = false; cachedToken = nil }
+
+    private static func token(in data: Data) -> String? {
+        let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        return (json?["claudeAiOauth"] as? [String: Any])?["accessToken"] as? String
+    }
+
+    private static func date(_ v: Any?) -> Date? {
+        guard let s = v as? String else { return nil }
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f.date(from: s) ?? ISO8601DateFormatter().date(from: s)
+    }
+}
