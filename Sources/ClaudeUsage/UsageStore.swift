@@ -41,8 +41,10 @@ final class UsageStore: ObservableObject {
             }
         }
 
-        if settings.useOfficialAPI,
-           force || Date().timeIntervalSince(lastOfficialFetch) >= 60 {
+        // Também consulta logo depois do reset da janela, sem esperar o intervalo de 60 s.
+        let resetPassed = official?.fiveHourReset.map { $0 <= Date() && lastOfficialFetch < $0 } ?? false
+        if settings.useOfficialAPI, settings.onboarded,
+           force || resetPassed || Date().timeIntervalSince(lastOfficialFetch) >= 60 {
             lastOfficialFetch = Date()
             Task {
                 let result = await api.fetch()
@@ -65,6 +67,17 @@ final class UsageStore: ObservableObject {
             }
         } else if !settings.useOfficialAPI {
             official = nil
+        }
+    }
+
+    /// Fim da tela de boas-vindas: pede um acesso de cada vez (primeiro notificações, depois o Keychain,
+    /// que é lido na primeira consulta da % oficial).
+    func finishOnboarding(useOfficial: Bool) {
+        settings.useOfficialAPI = useOfficial
+        settings.onboarded = true
+        guard settings.notify else { refresh(force: true); return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in
+            Task { @MainActor in self.refresh(force: true) }
         }
     }
 
@@ -109,12 +122,16 @@ final class UsageStore: ObservableObject {
 
     /// 0…1 (pode passar de 1 no modo local).
     var usedFraction: Double {
-        if source == .official, let o = official { return o.fiveHour / 100 }
+        if source == .official, let o = official {
+            // Passado o horário do reset, a janela zerou, mesmo antes da próxima consulta.
+            if let r = o.fiveHourReset, r <= now { return 0 }
+            return o.fiveHour / 100
+        }
         return Double(countedTokens) / Double(limit)
     }
 
     var resetDate: Date? {
-        if source == .official, let r = official?.fiveHourReset { return r }
+        if source == .official { return official?.fiveHourReset.flatMap { $0 > now ? $0 : nil } }
         return activeBlock?.end
     }
 

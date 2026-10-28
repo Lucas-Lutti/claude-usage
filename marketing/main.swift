@@ -222,6 +222,11 @@ MainActor.assumeIsolated {
     let store = UsageStore(settings: settings)
     store.load(demoSnapshot())
 
+    // Tela de boas-vindas (primeira abertura) e, depois, as telas normais.
+    settings.onboarded = false
+    let boasVindas = capture(PopoverView().environmentObject(store).environmentObject(settings), dark: true)
+    settings.onboarded = true
+
     @MainActor func popover(tab: Int, dark: Bool) -> NSImage {
         capture(PopoverView(initialTab: tab).environmentObject(store).environmentObject(settings), dark: dark)
     }
@@ -231,7 +236,7 @@ MainActor.assumeIsolated {
 
     // Telas soltas para o README (fundo transparente).
     for (img, name) in [(usoClaro, "painel-uso-claro.png"), (usoEscuro, "painel-uso-escuro.png"),
-                        (personalizar, "painel-personalizar.png")] {
+                        (personalizar, "painel-personalizar.png"), (boasVindas, "painel-boas-vindas.png")] {
         save(Card(image: img).padding(40), width: 420, height: img.size.height * 340 / img.size.width + 80,
              pixelWidth: 840, name)
     }

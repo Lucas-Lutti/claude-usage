@@ -73,10 +73,13 @@ open /Applications/ClaudeUsage.app
 
 ## Primeiro uso
 
-Ao abrir pela primeira vez:
+Ao abrir pela primeira vez, o painel mostra uma tela de boas-vindas explicando os acessos que o app vai pedir:
+
+<p align="center"><img src="docs/images/painel-boas-vindas.png" width="360" alt="Tela de boas-vindas"></p>
+
 
 1. O ícone aparece na barra de menus (o app não tem janela nem ícone no Dock).
-2. Se você já entrou no Claude Code, o macOS pede a sua senha para o app ler esse login e mostrar a [% oficial](#-oficial-padrão). Escolha **Sempre Permitir**. Se negar, o app usa a estimativa local.
+2. Em **Continuar**, o macOS pede (um de cada vez) permissão para notificações e a sua senha para o app ler o login do Claude Code e mostrar a [% oficial](#-oficial-padrão). Escolha **Sempre Permitir**. Se negar — ou escolher **Usar só a estimativa local** — o app usa a estimativa local.
 3. O app adiciona um hook ao Claude Code para abrir junto com ele — veja [abaixo](#abre-junto-com-o-claude-code).
 4. Sem a % oficial, escolha o seu plano em **Personalizar → Plano** ou ajuste o limite (veja [Como funciona](#o-limite-é-uma-estimativa)).
 5. Opcional: ligue **Abrir ao iniciar sessão** para ele subir com o Mac.

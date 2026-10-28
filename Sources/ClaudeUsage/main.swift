@@ -31,9 +31,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
-        // A opção já vem ligada, então a permissão precisa ser pedida aqui (o macOS só pergunta uma vez).
-        if settings.notify {
-            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        if settings.onboarded {
+            // A opção já vem ligada, então a permissão é confirmada a cada abertura (o macOS só pergunta uma vez).
+            if settings.notify {
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+            }
+        } else {
+            // Primeira abertura: mostra as boas-vindas antes de qualquer pedido do sistema.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in self?.togglePopover() }
         }
 
         // Na primeira execução, passa a abrir junto com o Claude Code (dá para desligar em Personalizar).
@@ -58,6 +63,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(timerInterval), repeats: true) { [weak self] _ in
             MainActor.assumeIsolated { self?.store.refresh() }
         }
+        // Folga de 10% para o macOS agrupar este despertar com outros (economiza bateria).
+        timer?.tolerance = TimeInterval(timerInterval) * 0.1
     }
 
     @objc private func togglePopover() {

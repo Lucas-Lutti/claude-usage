@@ -69,6 +69,8 @@ final class Settings: ObservableObject {
     @AppStorage("officialAPIOptIn") var useOfficialAPI = true
     @AppStorage("notify") var notify = true
     @AppStorage("hookSetupDone") var hookSetupDone = false
+    /// Tela de boas-vindas vista: só depois dela o app pede permissões (notificação e Keychain).
+    @AppStorage("onboarded") var onboarded = false
 
     func level(usedPercent p: Double) -> UsageLevel {
         p >= criticalPercent ? .critical : p >= warnPercent ? .warn : .ok

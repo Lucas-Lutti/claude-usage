@@ -11,6 +11,10 @@ struct PopoverView: View {
     init(initialTab: Int = 0) { _tab = State(initialValue: initialTab) }
 
     var body: some View {
+        if settings.onboarded { main } else { WelcomeView().padding(16).frame(width: 340) }
+    }
+
+    private var main: some View {
         VStack(alignment: .leading, spacing: 12) {
             Picker("", selection: $tab) {
                 Text("Uso").tag(0)
@@ -151,17 +155,22 @@ private struct UsageTab: View {
 
     private func officialSection(_ o: OfficialUsage) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Limites oficiais").font(.subheadline.weight(.semibold))
-            limitRow("5 horas", o.fiveHour, o.fiveHourReset)
-            if let s = o.sevenDay { limitRow("7 dias", s, o.sevenDayReset) }
+            Text(descending ? "Limites oficiais · restante" : "Limites oficiais · usado")
+                .font(.subheadline.weight(.semibold))
+            // A de 5h usa o mesmo valor do topo (que já zera depois do reset).
+            limitRow("5 horas", usedFraction: store.usedFraction, store.resetDate)
+            if let s = o.sevenDay { limitRow("7 dias", usedFraction: s / 100, o.sevenDayReset) }
         }
     }
 
-    private func limitRow(_ label: String, _ pct: Double, _ reset: Date?) -> some View {
-        HStack {
+    /// Mesmo sentido (restante ou usado) e mesmo arredondamento do número grande do topo.
+    private func limitRow(_ label: String, usedFraction: Double, _ reset: Date?) -> some View {
+        let used = min(max(usedFraction, 0), 1)
+        let value = descending ? 1 - used : used
+        return HStack {
             Text(label).frame(width: 60, alignment: .leading)
-            LevelBar(value: min(pct / 100, 1), color: .accentColor, height: 6)
-            Text("\(Int(pct))%").monospacedDigit().frame(width: 40, alignment: .trailing)
+            LevelBar(value: value, color: .accentColor, height: 6)
+            Text("\(Int((value * 100).rounded()))%").monospacedDigit().frame(width: 40, alignment: .trailing)
         }
         .font(.callout)
         .help(reset.map { "Reset: \($0.formatted(date: .abbreviated, time: .shortened))" } ?? "")
@@ -346,5 +355,47 @@ private struct LevelBar: View {
         }
         .frame(height: height)
         .animation(.easeOut(duration: 0.4), value: value)
+    }
+}
+
+// MARK: - Boas-vindas
+
+/// Primeira abertura: explica os pedidos do sistema antes de eles aparecerem.
+private struct WelcomeView: View {
+    @EnvironmentObject var store: UsageStore
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            Text("Bem-vindo ao Claude Usage").font(.title3.weight(.semibold))
+            Text("O ícone na barra mostra quanto ainda resta da sua janela de 5h do Claude.")
+                .foregroundStyle(.secondary)
+
+            item("lock.shield", "% exata",
+                 "O app lê o login do Claude Code no Keychain. O macOS vai pedir a sua senha: escolha “Sempre Permitir”.")
+            item("bell.badge", "Notificações",
+                 "Um aviso quando a janela entrar no vermelho.")
+
+            VStack(spacing: 8) {
+                Button { store.finishOnboarding(useOfficial: true) } label: {
+                    Text("Continuar").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.borderedProminent).controlSize(.large)
+                Button("Usar só a estimativa local") { store.finishOnboarding(useOfficial: false) }
+                    .buttonStyle(.borderless)
+            }
+            Text("Dá para mudar tudo depois em Personalizar.")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    private func item(_ icon: String, _ title: String, _ text: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon).font(.title3).foregroundStyle(.green).frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title).font(.callout.weight(.semibold))
+                Text(text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+            }
+        }
     }
 }
