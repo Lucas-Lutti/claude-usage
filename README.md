@@ -133,6 +133,7 @@ Sem janela ativa (você não usou o Claude nas últimas 5h), o ícone fica cheio
 | **Laranja / Vermelho abaixo de** | Limites das cores. |
 | **Notificar quando ficar vermelho** | Uma notificação por janela. |
 | **Abrir ao iniciar sessão** | Abre com o Mac. |
+| **Aparecer só com o Claude aberto** | Esconde o ícone (e para o app) quando o Claude está fechado. Ligado por padrão. |
 | **Abrir junto com o Claude Code** | Liga/desliga o hook. |
 
 ## Como funciona
@@ -180,6 +181,14 @@ O login do Claude Code vale algumas horas e é renovado pelo próprio Claude Cod
   - **Usar estimativa nesta janela** — segue com a estimativa até o reset, sem novos avisos;
 - se você usar o Claude Code depois disso, o app tenta a % exata de novo sozinho (no máximo a cada 5 min);
 - no reset da janela, o app tenta de novo e, se o login continuar vencido, pergunta outra vez.
+
+## Aparece só com o Claude aberto
+
+Por padrão o ícone fica na barra só enquanto o Claude está aberto — o app desktop ou o Claude Code (terminal, IDE ou dentro do app). Fechou o Claude, o ícone some e o app fica parado em segundo plano, sem ler arquivos nem consultar nada; abriu, o ícone volta na hora.
+
+- Para isso funcionar depois de reiniciar o Mac, o app liga **Abrir ao iniciar sessão** na primeira execução.
+- Abrir o Claude Usage pelo Finder ou Spotlight com o Claude fechado mostra o ícone e o painel mesmo assim.
+- Desligue em **Personalizar → Aparecer só com o Claude aberto** para o ícone ficar sempre visível.
 
 ## Abre junto com o Claude Code
 

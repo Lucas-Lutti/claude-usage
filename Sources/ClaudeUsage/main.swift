@@ -1,5 +1,6 @@
 import AppKit
 import Combine
+import ServiceManagement
 import SwiftUI
 import UserNotifications
 
@@ -13,6 +14,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNU
     private var timer: Timer?
     private var timerInterval = 0
     private var cancellables = Set<AnyCancellable>()
+    /// Claude (app desktop ou Claude Code) aberto agora.
+    private var claudeOpen = true
+    /// A pessoa abriu o app na mão com o Claude fechado: mostra o ícone até o Claude fechar de novo.
+    private var shownByUser = false
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
@@ -24,9 +29,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNU
         popover.delegate = self
         UNUserNotificationCenter.current().delegate = self
         NotificationCenter.default.addObserver(forName: .showUsagePanel, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, !self.popover.isShown else { return }
-                self.togglePopover()
+            MainActor.assumeIsolated { self?.showPanel() }
+        }
+        // Abrir/fechar o app desktop do Claude é avisado na hora; o Claude Code é conferido a cada atualização.
+        let workspace = NSWorkspace.shared.notificationCenter
+        for name in [NSWorkspace.didLaunchApplicationNotification, NSWorkspace.didTerminateApplicationNotification] {
+            workspace.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.updateClaudeState() }
             }
         }
 
@@ -34,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNU
             .debounce(for: .milliseconds(30), scheduler: RunLoop.main)
             .sink { [weak self] _ in
                 self?.updateButton()
+                self?.updateVisibility()
                 self?.scheduleTimer()
             }
             .store(in: &cancellables)
@@ -58,9 +68,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNU
             }
         }
 
+        // Para aparecer quando o Claude abrir, o app precisa já estar rodando: liga "Abrir ao iniciar sessão" uma vez.
+        if settings.followClaude, !settings.followClaudeLoginDone {
+            try? SMAppService.mainApp.register()
+            settings.followClaudeLoginDone = true
+        }
+
+        claudeOpen = ClaudeProcess.isRunning
+        updateVisibility()
         updateButton()
         store.refresh(force: true)
         scheduleTimer()
+    }
+
+    // Abrir o app de novo (Finder, Spotlight) com o Claude fechado mostra o ícone e o painel.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        showPanel()
+        return false
+    }
+
+    private func showPanel() {
+        shownByUser = !claudeOpen
+        updateVisibility()
+        if !popover.isShown { togglePopover() }
+    }
+
+    private func updateClaudeState() {
+        let open = ClaudeProcess.isRunning
+        if open && !claudeOpen { store.refresh(force: true) }   // acabou de abrir: atualiza na hora
+        if !open && claudeOpen { shownByUser = false }
+        claudeOpen = open
+        updateVisibility()
+    }
+
+    private func updateVisibility() {
+        let visible = !settings.followClaude || !settings.onboarded || claudeOpen || shownByUser
+        if statusItem.isVisible != visible { statusItem.isVisible = visible }
+        if !visible, popover.isShown { popover.performClose(nil) }
     }
 
     private func scheduleTimer() {
@@ -68,7 +112,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNU
         timerInterval = settings.refreshSeconds
         timer?.invalidate()
         timer = Timer.scheduledTimer(withTimeInterval: TimeInterval(timerInterval), repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated { self?.store.refresh() }
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                self.updateClaudeState()
+                // Escondido (Claude fechado), não lê transcripts nem consulta a API.
+                if self.statusItem.isVisible { self.store.refresh() }
+            }
         }
         // Folga de 10% para o macOS agrupar este despertar com outros (economiza bateria).
         timer?.tolerance = TimeInterval(timerInterval) * 0.1

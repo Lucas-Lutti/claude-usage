@@ -72,6 +72,9 @@ final class Settings: ObservableObject {
     /// Tela de boas-vindas vista: só depois dela o app pede permissões (notificação e Keychain).
     @AppStorage("onboarded") var onboarded = false
     @AppStorage("onboardingStep") var onboardingStep = 0
+    /// Ícone só aparece com o Claude aberto (o app fica rodando escondido, sem trabalho, no resto do tempo).
+    @AppStorage("followClaude") var followClaude = true
+    @AppStorage("followClaudeLoginDone") var followClaudeLoginDone = false
 
     func level(usedPercent p: Double) -> UsageLevel {
         p >= criticalPercent ? .critical : p >= warnPercent ? .warn : .ok

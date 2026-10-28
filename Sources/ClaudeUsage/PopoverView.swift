@@ -296,6 +296,18 @@ private struct SettingsTab: View {
                     }
                 }
                 if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
+                Toggle("Aparecer só com o Claude aberto", isOn: $settings.followClaude)
+                    .onChange(of: settings.followClaude) { _, on in
+                        // Precisa estar rodando para aparecer quando o Claude abrir.
+                        guard on, SMAppService.mainApp.status != .enabled else { return }
+                        try? SMAppService.mainApp.register()
+                        loginStatus = SMAppService.mainApp.status
+                        launchAtLogin = [.enabled, .requiresApproval].contains(loginStatus)
+                    }
+                if settings.followClaude {
+                    Text("Com o Claude fechado, o ícone some e o app fica parado em segundo plano.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
                 Toggle("Abrir junto com o Claude Code", isOn: $openWithClaude)
                     .help("Adiciona um hook SessionStart em ~/.claude/settings.json")
                     .onChange(of: openWithClaude) { _, on in
