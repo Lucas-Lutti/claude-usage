@@ -187,7 +187,7 @@ O login do Claude Code vale algumas horas e é renovado pelo próprio Claude Cod
 Por padrão o ícone fica na barra só enquanto o Claude está aberto — o app desktop ou o Claude Code (terminal, IDE ou dentro do app). Fechou o Claude, o ícone some e o app fica parado em segundo plano, sem ler arquivos nem consultar nada; abriu, o ícone volta na hora.
 
 - Para isso funcionar depois de reiniciar o Mac, o app liga **Abrir ao iniciar sessão** na primeira execução.
-- Abrir o Claude Usage pelo Finder ou Spotlight com o Claude fechado mostra o ícone e o painel mesmo assim.
+- Abrir o Claude Usage pelo Finder ou Spotlight com o Claude fechado mostra o ícone mesmo assim.
 - Desligue em **Personalizar → Aparecer só com o Claude aberto** para o ícone ficar sempre visível.
 
 ## Abre junto com o Claude Code

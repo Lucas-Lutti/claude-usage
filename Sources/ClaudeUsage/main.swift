@@ -81,9 +81,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNU
         scheduleTimer()
     }
 
-    // Abrir o app de novo (Finder, Spotlight) com o Claude fechado mostra o ícone e o painel.
+    // Abrir o app de novo (Finder, Spotlight) com o Claude fechado mostra o ícone, sem abrir o painel:
+    // o hook do Claude Code também "reabre" o app a cada sessão nova, e isso não pode abrir o menu.
     func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
-        showPanel()
+        if !claudeOpen { shownByUser = true }
+        updateVisibility()
         return false
     }
 
