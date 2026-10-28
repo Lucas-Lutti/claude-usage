@@ -8,6 +8,7 @@ final class UsageStore: ObservableObject {
     @Published private(set) var snapshot = UsageSnapshot()
     @Published private(set) var official: OfficialUsage?
     @Published private(set) var isScanning = false
+    @Published private(set) var officialDenied = false
 
     let settings: Settings
     private let scanner = TranscriptScanner()
@@ -44,10 +45,12 @@ final class UsageStore: ObservableObject {
            force || Date().timeIntervalSince(lastOfficialFetch) >= 60 {
             lastOfficialFetch = Date()
             Task {
-                if force { await api.reset() }
-                switch await api.fetch() {
+                let result = await api.fetch()
+                self.officialDenied = false
+                switch result {
                 case .usage(let usage): self.official = usage
                 case .noLogin: self.official = nil
+                case .denied: self.official = nil; self.officialDenied = true
                 case .failed:
                     // Mantém o último valor por até 10 min, para a % não alternar entre as fontes.
                     if let o = self.official, Date().timeIntervalSince(o.fetchedAt) > 600 { self.official = nil }
@@ -55,6 +58,15 @@ final class UsageStore: ObservableObject {
             }
         } else if !settings.useOfficialAPI {
             official = nil
+            officialDenied = false
+        }
+    }
+
+    /// Chamado ao ligar/desligar a % oficial: libera uma nova tentativa de acesso ao Keychain.
+    func officialOptionChanged() {
+        Task {
+            await api.resetAccess()
+            refresh(force: true)
         }
     }
 

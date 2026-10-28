@@ -225,8 +225,15 @@ private struct SettingsTab: View {
                     TextField("Tokens", value: $settings.customLimit, format: .number)
                 }
                 Toggle("Contar leitura de cache", isOn: $settings.includeCacheReads)
-                Toggle("Usar API oficial quando disponível", isOn: $settings.useOfficialAPI)
-                    .onChange(of: settings.useOfficialAPI) { store.refresh(force: true) }
+                Toggle("Usar % oficial do Claude Code", isOn: $settings.useOfficialAPI)
+                    .onChange(of: settings.useOfficialAPI) { store.officialOptionChanged() }
+                if settings.useOfficialAPI {
+                    Text(store.officialDenied
+                         ? "Acesso ao Keychain negado. Desligue e ligue de novo para tentar outra vez."
+                         : "Lê o login do Claude Code no Keychain. O macOS pede sua senha: escolha “Sempre Permitir”.")
+                        .font(.caption)
+                        .foregroundStyle(store.officialDenied ? .red : .secondary)
+                }
             }
             Section("Alertas") {
                 LabeledContent("Laranja abaixo de \(100 - Int(settings.warnPercent))% restante") {

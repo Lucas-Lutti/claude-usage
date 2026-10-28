@@ -122,7 +122,7 @@ Sem janela ativa (você não usou o Claude nas últimas 5h), o ícone fica cheio
 | **Atualizar a cada** | 5 s, 15 s, 30 s ou 1 min. |
 | **Plano** | Define o limite da janela (100%). Veja abaixo. |
 | **Contar leitura de cache** | Inclui os tokens lidos do cache na conta. Desligado por padrão. |
-| **Usar API oficial quando disponível** | Usa a % oficial se houver login do Claude Code no terminal. |
+| **Usar % oficial do Claude Code** | Lê o login do Claude Code no Keychain para mostrar a % oficial (o macOS pede a senha uma vez). Desligado por padrão. |
 | **Laranja / Vermelho abaixo de** | Limites das cores. |
 | **Notificar quando ficar vermelho** | Uma notificação por janela. |
 | **Abrir ao iniciar sessão** | Abre com o Mac. |
@@ -154,11 +154,15 @@ A Anthropic não publica os limites de cada plano em tokens, então a % local é
 
 Por padrão contam entrada + saída + escrita em cache. Se a % não bater com a sua experiência (por exemplo, você bate no limite com o app ainda mostrando 40%), ajuste em **Personalizado**. Uma forma prática de calibrar: quando você bater no limite de verdade, veja o total de tokens da janela no painel e use esse valor.
 
-### API oficial (opcional)
+### % oficial (opcional, desligada por padrão)
 
-Se você estiver logado no **Claude Code pelo terminal** (comando `claude`), o login fica no Keychain do macOS. Nesse caso o app consulta o mesmo endpoint usado pelo comando `/usage` e mostra a **% oficial** da janela de 5h e do limite semanal, com o selo "API oficial". O macOS pode pedir permissão para o app ler esse item do Keychain.
+O Claude Code guarda o login no Keychain do macOS (item "Claude Code-credentials"). Ligando **Personalizar → Usar % oficial do Claude Code**, o app lê esse login e consulta o mesmo endpoint usado pelo comando `/usage`, mostrando a **% oficial** da janela de 5h e do limite semanal, com o selo "API oficial".
 
-Sem esse login (por exemplo, se você só usa o app desktop), o app usa a estimativa local.
+- Como o item pertence ao Claude Code, o macOS pede a sua senha na primeira leitura. Escolha **Sempre Permitir** para não ser perguntado de novo.
+- Se você negar, o app não pede de novo sozinho — desligue e ligue a opção para tentar outra vez.
+- A cada versão nova do app (inclusive se você recompilar), o macOS pode pedir de novo, porque o app não é assinado com um certificado da Apple.
+
+Com a opção desligada, o app nunca toca no Keychain e usa a estimativa local.
 
 ## Abre junto com o Claude Code
 
@@ -189,7 +193,8 @@ Toda sessão nova do Claude Code abre o app em segundo plano; se ele já estiver
 ## Privacidade
 
 - O app **só lê** arquivos locais do Claude Code e grava apenas o hook descrito acima.
-- Nenhum dado é enviado para lugar nenhum, exceto a consulta opcional à API da Anthropic (`api.anthropic.com`) quando há login do Claude Code no terminal — a mesma que o próprio Claude Code faz.
+- O Keychain só é lido se você ligar a % oficial.
+- Nenhum dado é enviado para lugar nenhum, exceto a consulta opcional à API da Anthropic (`api.anthropic.com`) com a % oficial ligada — a mesma que o próprio Claude Code faz.
 - Sem analytics, sem telemetria, sem conta.
 
 ## Limitações

@@ -64,7 +64,8 @@ final class Settings: ObservableObject {
     // Em % usado: laranja a partir da metade, vermelho nos últimos 15%.
     @AppStorage("warnPercent") var warnPercent: Double = 50
     @AppStorage("criticalPercent") var criticalPercent: Double = 85
-    @AppStorage("useOfficialAPI") var useOfficialAPI = true
+    // Desligado por padrão: ler o login do Claude Code no Keychain faz o macOS pedir a senha.
+    @AppStorage("officialAPIOptIn") var useOfficialAPI = false
     @AppStorage("notify") var notify = true
     @AppStorage("hookSetupDone") var hookSetupDone = false
 
