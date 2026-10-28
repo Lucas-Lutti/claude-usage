@@ -14,7 +14,7 @@ final class UsageStore: ObservableObject {
     private let scanner = TranscriptScanner()
     private let api = OfficialUsageClient()
     private var lastOfficialFetch = Date.distantPast
-    private var notifiedBlock: Date?
+    private var notifiedWindow: Date?
 
     init(settings: Settings) { self.settings = settings }
 
@@ -46,11 +46,18 @@ final class UsageStore: ObservableObject {
             lastOfficialFetch = Date()
             Task {
                 let result = await api.fetch()
-                self.officialDenied = false
+                // A opção pode ter sido desligada enquanto a consulta estava em andamento.
+                guard self.settings.useOfficialAPI else { return }
                 switch result {
-                case .usage(let usage): self.official = usage
+                case .usage(let usage):
+                    self.official = usage
+                    self.checkNotification()
                 case .noLogin: self.official = nil
-                case .denied: self.official = nil; self.officialDenied = true
+                case .denied:
+                    // Desliga a opção (fica salvo), para o macOS não pedir a senha a cada abertura do app.
+                    self.official = nil
+                    self.officialDenied = true
+                    self.settings.useOfficialAPI = false
                 case .failed:
                     // Mantém o último valor por até 10 min, para a % não alternar entre as fontes.
                     if let o = self.official, Date().timeIntervalSince(o.fetchedAt) > 600 { self.official = nil }
@@ -58,12 +65,13 @@ final class UsageStore: ObservableObject {
             }
         } else if !settings.useOfficialAPI {
             official = nil
-            officialDenied = false
         }
     }
 
-    /// Chamado ao ligar/desligar a % oficial: libera uma nova tentativa de acesso ao Keychain.
+    /// Chamado ao ligar/desligar a % oficial. Ao ligar, libera uma nova tentativa de acesso ao Keychain.
     func officialOptionChanged() {
+        guard settings.useOfficialAPI else { refresh(); return }
+        officialDenied = false
         Task {
             await api.resetAccess()
             refresh(force: true)
@@ -143,14 +151,20 @@ final class UsageStore: ObservableObject {
 
     // MARK: Notificações
 
+    /// Uma notificação por janela. A janela é identificada pelo horário do reset, que existe tanto
+    /// na % oficial (mesmo sem uso neste Mac) quanto na estimativa local.
     private func checkNotification() {
-        guard settings.notify, let b = activeBlock, notifiedBlock != b.start,
+        guard settings.notify, let window = resetDate, window > now, notifiedWindow != window,
               usedFraction * 100 >= settings.criticalPercent else { return }
-        notifiedBlock = b.start
+        notifiedWindow = window
+        let used = Int((min(usedFraction, 1) * 100).rounded())
         let content = UNMutableNotificationContent()
-        content.title = "Claude: \(Int(usedFraction * 100))% da janela de 5h"
-        if let r = resetDate { content.body = "Reset às \(Fmt.time.string(from: r))." }
+        // Mesmo sentido do que aparece na barra (restante por padrão).
+        content.title = settings.displayMode == .used
+            ? "Claude: \(used)% da janela de 5h usados"
+            : "Claude: restam \(100 - used)% da janela de 5h"
+        content.body = "Reset às \(Fmt.time.string(from: window))."
         UNUserNotificationCenter.current().add(
-            UNNotificationRequest(identifier: "warn-\(b.start)", content: content, trigger: nil))
+            UNNotificationRequest(identifier: "warn-\(window.timeIntervalSince1970)", content: content, trigger: nil))
     }
 }

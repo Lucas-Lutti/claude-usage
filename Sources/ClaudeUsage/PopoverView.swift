@@ -60,7 +60,7 @@ private struct UsageTab: View {
                 header(now: ctx.date)
                 tokenGrid
                 chart
-                if let o = store.official { officialSection(o) }
+                if store.source == .official, let o = store.official { officialSection(o) }
                 if let b = store.activeBlock, b.byProject.count > 1 { projects(b) }
                 totals
             }
@@ -227,12 +227,12 @@ private struct SettingsTab: View {
                 Toggle("Contar leitura de cache", isOn: $settings.includeCacheReads)
                 Toggle("Usar % oficial do Claude Code", isOn: $settings.useOfficialAPI)
                     .onChange(of: settings.useOfficialAPI) { store.officialOptionChanged() }
-                if settings.useOfficialAPI {
-                    Text(store.officialDenied
-                         ? "Acesso ao Keychain negado. Desligue e ligue de novo para tentar outra vez."
-                         : "Lê o login do Claude Code no Keychain. O macOS pede sua senha: escolha “Sempre Permitir”.")
-                        .font(.caption)
-                        .foregroundStyle(store.officialDenied ? .red : .secondary)
+                if store.officialDenied {
+                    Text("O acesso ao Keychain foi negado, então a % oficial foi desligada. Ligue de novo para tentar outra vez.")
+                        .font(.caption).foregroundStyle(.red)
+                } else if settings.useOfficialAPI {
+                    Text("Lê o login do Claude Code no Keychain. O macOS pede sua senha: escolha “Sempre Permitir”.")
+                        .font(.caption).foregroundStyle(.secondary)
                 }
             }
             Section("Alertas") {

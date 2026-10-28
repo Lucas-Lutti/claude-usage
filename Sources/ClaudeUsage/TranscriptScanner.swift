@@ -17,7 +17,7 @@ final class TranscriptScanner: @unchecked Sendable {
     }()
     private let iso = ISO8601DateFormatter()
 
-    // Arquivos recentes (caminho → projeto) e data de cada pasta de projeto na última olhada.
+    // Arquivos recentes (caminho → projeto) e data de cada pasta (projeto/sessão) na última olhada.
     private var recentFiles: [String: String] = [:]
     private var dirDates: [String: Date] = [:]
     private var lastFullScan = Date.distantPast
@@ -38,7 +38,18 @@ final class TranscriptScanner: @unchecked Sendable {
         for root in ClaudePaths.projectRoots {
             for (dir, date) in projectDirs(in: root) where full || dirDates[dir.path] != date {
                 dirDates[dir.path] = date
-                collectRecent(in: dir, cutoff: cutoff)
+                collectRecent(in: dir, project: dir.lastPathComponent, cutoff: cutoff)
+            }
+        }
+        // Subagentes gravam em <projeto>/<sessão>/subagents/, o que não muda a data da pasta do projeto:
+        // olha também as pastas das sessões recentes.
+        for (path, project) in Array(recentFiles) where path.hasSuffix(".jsonl") {
+            let session = URL(fileURLWithPath: String(path.dropLast(".jsonl".count)))
+            for dir in [session, session.appendingPathComponent("subagents")] {
+                guard let date = (try? dir.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate,
+                      dirDates[dir.path] != date else { continue }
+                dirDates[dir.path] = date
+                collectRecent(in: dir, project: project, cutoff: cutoff)
             }
         }
 
@@ -67,13 +78,13 @@ final class TranscriptScanner: @unchecked Sendable {
     }
 
     /// Guarda os .jsonl modificados dentro do período de retenção (inclui subpastas de subagentes).
-    private func collectRecent(in dir: URL, cutoff: Date) {
+    private func collectRecent(in dir: URL, project: String, cutoff: Date) {
         guard let en = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: Array(fileKeys),
                                                       options: [.skipsHiddenFiles]) else { return }
         for case let url as URL in en where url.pathExtension == "jsonl" {
             guard let mod = (try? url.resourceValues(forKeys: fileKeys))?.contentModificationDate,
                   mod >= cutoff else { continue }
-            recentFiles[url.path] = dir.lastPathComponent
+            recentFiles[url.path] = project
         }
     }
 

@@ -35,11 +35,21 @@ enum ClaudeHook {
 
     enum HookError: LocalizedError {
         case invalidSettings
-        var errorDescription: String? { "O settings.json do Claude Code não é um JSON válido; nada foi alterado." }
+        case unreadable
+        var errorDescription: String? {
+            switch self {
+            case .invalidSettings: "O settings.json do Claude Code não é um JSON válido; nada foi alterado."
+            case .unreadable: "Não foi possível ler o settings.json do Claude Code; nada foi alterado."
+            }
+        }
     }
 
     private static func readSettings() throws -> [String: Any] {
-        guard let data = try? Data(contentsOf: settingsURL), !data.isEmpty else { return [:] }
+        // Só trata como vazio se não houver nada no caminho. Se existir mas não der para ler
+        // (sem permissão, link simbólico quebrado), falha em vez de gravar por cima.
+        guard (try? FileManager.default.attributesOfItem(atPath: settingsURL.path)) != nil else { return [:] }
+        guard let data = try? Data(contentsOf: settingsURL) else { throw HookError.unreadable }
+        if data.isEmpty { return [:] }
         guard let json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             throw HookError.invalidSettings
         }

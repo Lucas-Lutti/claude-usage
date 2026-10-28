@@ -6,9 +6,9 @@ enum ClaudePaths {
     static let defaultDir = home.appendingPathComponent(".claude")
 
     /// Pastas de configuração. Apps abertos pelo Finder não herdam o ambiente do shell,
-    /// então CLAUDE_CONFIG_DIR também é procurado no shell do usuário (uma vez, na primeira consulta).
+    /// então CLAUDE_CONFIG_DIR também é procurado no shell do usuário (resultado guardado por um dia).
     static let configDirs: [URL] = {
-        let raw = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"] ?? shellVariable("CLAUDE_CONFIG_DIR")
+        let raw = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"] ?? cachedShellConfigDir()
         let custom = (raw ?? "").split(separator: ",").map {
             URL(fileURLWithPath: NSString(string: String($0)).expandingTildeInPath)
         }
@@ -23,6 +23,20 @@ enum ClaudePaths {
         let all = configDirs + [defaultDir, home.appendingPathComponent(".config/claude")]
         var seen = Set<String>()
         return all.map { $0.appendingPathComponent("projects") }.filter { seen.insert($0.standardizedFileURL.path).inserted }
+    }
+
+    /// Abrir o shell interativo executa o .zshrc inteiro, então só é feito uma vez por dia.
+    private static func cachedShellConfigDir() -> String? {
+        let defaults = UserDefaults.standard
+        if let checked = defaults.object(forKey: "shellConfigDirCheckedAt") as? Date,
+           Date().timeIntervalSince(checked) < 86400 {
+            let value = defaults.string(forKey: "shellConfigDir") ?? ""
+            return value.isEmpty ? nil : value
+        }
+        let value = shellVariable("CLAUDE_CONFIG_DIR")
+        defaults.set(value ?? "", forKey: "shellConfigDir")
+        defaults.set(Date(), forKey: "shellConfigDirCheckedAt")
+        return value
     }
 
     /// Lê uma variável do shell interativo de login do usuário (com limite de 3 s).
