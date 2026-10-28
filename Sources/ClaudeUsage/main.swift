@@ -3,7 +3,7 @@ import Combine
 import SwiftUI
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     let settings = Settings()
     lazy var store = UsageStore(settings: settings)
 
@@ -19,12 +19,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusItem.button?.action = #selector(togglePopover)
         statusItem.button?.imagePosition = .imageRight
 
-        let host = NSHostingController(rootView: PopoverView()
-            .environmentObject(store)
-            .environmentObject(settings))
-        host.sizingOptions = [.preferredContentSize]
-        popover.contentViewController = host
         popover.behavior = .transient
+        popover.delegate = self
 
         store.objectWillChange.merge(with: settings.objectWillChange)
             .debounce(for: .milliseconds(30), scheduler: RunLoop.main)
@@ -60,9 +56,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             popover.performClose(nil)
         } else {
             store.refresh()
+            // O painel só existe enquanto está aberto, para não ficar redesenhando em segundo plano.
+            let host = NSHostingController(rootView: PopoverView()
+                .environmentObject(store)
+                .environmentObject(settings))
+            host.sizingOptions = [.preferredContentSize]
+            popover.contentViewController = host
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        popover.contentViewController = nil
     }
 
     private func updateButton() {
