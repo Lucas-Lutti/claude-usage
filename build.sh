@@ -7,7 +7,7 @@
 #   ./build.sh --zip      também gera build/ClaudeUsage.zip (para publicar uma release)
 set -e
 cd "$(dirname "$0")"
-VERSION="1.1.1"
+VERSION="1.2.0"
 
 # O build universal depende do xcbuild, que só vem com o Xcode.
 if [[ "$(xcode-select -p 2>/dev/null)" == *Xcode*.app* ]]; then

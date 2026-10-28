@@ -62,6 +62,7 @@ private struct UsageTab: View {
         TimelineView(.periodic(from: .now, by: 1)) { ctx in
             VStack(alignment: .leading, spacing: 12) {
                 header(now: ctx.date)
+                if store.officialExpired { expiredBanner }
                 tokenGrid
                 chart
                 if store.source == .official, let o = store.official { officialSection(o) }
@@ -76,7 +77,8 @@ private struct UsageTab: View {
             HStack(alignment: .firstTextBaseline) {
                 Text("Janela de 5h").font(.headline)
                 Spacer()
-                Text(store.source == .official ? "API oficial" : "Estimativa local")
+                Text(store.source == .official ? "API oficial"
+                     : store.estimateUntil != nil ? "Estimativa até o reset" : "Estimativa local")
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
             }
@@ -102,6 +104,25 @@ private struct UsageTab: View {
                     .font(.callout).foregroundStyle(.secondary)
             }
         }
+    }
+
+    /// Login do Claude venceu: explica e deixa a pessoa escolher entre renovar ou seguir com a estimativa.
+    private var expiredBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Login do Claude venceu", systemImage: "exclamationmark.triangle.fill")
+                .font(.callout.weight(.semibold)).foregroundStyle(.orange)
+            Text("Para ver a % exata, abra o Claude Code (terminal ou app) e mande qualquer mensagem: ele renova o login. Até lá, a % é uma estimativa.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Button("Já renovei") { store.retryOfficialNow() }
+                    .buttonStyle(.borderedProminent).controlSize(.small)
+                Button("Usar estimativa nesta janela") { store.useEstimateThisWindow() }
+                    .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(Color.orange.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private var tokenGrid: some View {

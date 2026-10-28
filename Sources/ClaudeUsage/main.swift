@@ -4,7 +4,7 @@ import SwiftUI
 import UserNotifications
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate, UNUserNotificationCenterDelegate {
     let settings = Settings()
     lazy var store = UsageStore(settings: settings)
 
@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
+        UNUserNotificationCenter.current().delegate = self
         NotificationCenter.default.addObserver(forName: .showUsagePanel, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, !self.popover.isShown else { return }
@@ -88,6 +89,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             popover.contentViewController?.view.window?.makeKey()
         }
+    }
+
+    // Clicar numa notificação abre o painel (ex.: aviso de login vencido).
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse,
+                                            withCompletionHandler completionHandler: @escaping () -> Void) {
+        DispatchQueue.main.async { NotificationCenter.default.post(name: .showUsagePanel, object: nil) }
+        completionHandler()
+    }
+
+    // Mostra a notificação mesmo com o app ativo (ele não tem janela, então quase sempre está "ativo").
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, willPresent notification: UNNotification,
+                                            withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
     }
 
     func popoverDidClose(_ notification: Notification) {

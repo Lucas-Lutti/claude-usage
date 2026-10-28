@@ -8,37 +8,47 @@ import Security
 actor OfficialUsageClient {
     enum FetchResult {
         case usage(OfficialUsage)
-        case noLogin        // sem login do Claude Code CLI nesta máquina
+        case noLogin        // sem login do Claude Code nesta máquina
         case denied         // a pessoa negou (ou cancelou) o acesso ao Keychain
-        case failed         // rede, token expirado, resposta inesperada
+        case expired        // o login venceu e o Claude Code ainda não renovou
+        case failed         // rede, resposta inesperada
     }
 
-    private var cachedToken: String?
+    /// Token de acesso e quando ele vence (campo `expiresAt` salvo pelo Claude Code).
+    private struct Credential {
+        let token: String
+        let expiresAt: Date?
+        var isExpired: Bool { expiresAt.map { $0 <= Date() } ?? false }
+    }
+
+    private var credential: Credential?
     private var lastTokenMiss: Date?
     private var denied = false
-    private var nextTokenRead: Date?
     private let tokenRetryInterval: TimeInterval = 300
-    /// Depois de um 401, espera antes de reler o Keychain: o token só muda quando o Claude Code o renova,
-    /// e cada leitura pode fazer o macOS pedir a senha (se não houver "Sempre Permitir").
-    private let expiredRetryInterval: TimeInterval = 1800
 
     func fetch() async -> FetchResult {
         if denied { return .denied }
-        if cachedToken == nil, let next = nextTokenRead, Date() < next { return .failed }
-        guard let token = cachedToken ?? loadToken() else { return denied ? .denied : .noLogin }
-        cachedToken = token
+        // Passado o vencimento, relê o Keychain na hora: se o Claude Code já renovou, segue sem avisar.
+        if credential?.isExpired == true { credential = nil }
+        if credential == nil {
+            guard let loaded = loadCredential() else { return denied ? .denied : .noLogin }
+            credential = loaded
+        }
+        guard let current = credential, !current.isExpired else {
+            credential = nil
+            return .expired
+        }
 
         var req = URLRequest(url: URL(string: "https://api.anthropic.com/api/oauth/usage")!)
-        req.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        req.setValue("Bearer \(current.token)", forHTTPHeaderField: "Authorization")
         req.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
         req.timeoutInterval = 15
 
         guard let (data, resp) = try? await URLSession.shared.data(for: req),
               let http = resp as? HTTPURLResponse else { return .failed }
         if http.statusCode == 401 {
-            cachedToken = nil
-            nextTokenRead = Date().addingTimeInterval(expiredRetryInterval)
-            return .failed
+            credential = nil
+            return .expired
         }
         guard http.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .failed }
@@ -54,13 +64,12 @@ actor OfficialUsageClient {
                                     fetchedAt: Date()))
     }
 
-    private func loadToken() -> String? {
-        // Sem login: tenta de novo a cada 5 min, para notar quando a pessoa logar no CLI.
+    private func loadCredential() -> Credential? {
+        // Sem login: tenta de novo a cada 5 min, para notar quando a pessoa logar no Claude Code.
         // (Item inexistente não gera pedido de senha; só um item existente sem permissão gera.)
         if let miss = lastTokenMiss, Date().timeIntervalSince(miss) < tokenRetryInterval { return nil }
-        if let next = nextTokenRead, Date() < next { return nil }
         let file = ClaudePaths.mainDir.appendingPathComponent(".credentials.json")
-        if let data = try? Data(contentsOf: file), let t = Self.token(in: data) { return t }
+        if let data = try? Data(contentsOf: file), let c = Self.credential(in: data) { return c }
 
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
@@ -71,7 +80,7 @@ actor OfficialUsageClient {
         var out: CFTypeRef?
         switch SecItemCopyMatching(query as CFDictionary, &out) {
         case errSecSuccess:
-            if let data = out as? Data, let t = Self.token(in: data) { return t }
+            if let data = out as? Data, let c = Self.credential(in: data) { return c }
             lastTokenMiss = Date()
         case errSecItemNotFound:
             lastTokenMiss = Date()   // não fica consultando o Keychain a cada atualização
@@ -81,12 +90,16 @@ actor OfficialUsageClient {
         return nil
     }
 
-    /// Volta a tentar o Keychain (ao religar a opção).
-    func resetAccess() { denied = false; lastTokenMiss = nil; nextTokenRead = nil; cachedToken = nil }
+    /// Volta a tentar o Keychain (ao religar a opção ou quando a pessoa diz que renovou o login).
+    func resetAccess() { denied = false; lastTokenMiss = nil; credential = nil }
 
-    private static func token(in data: Data) -> String? {
+    private static func credential(in data: Data) -> Credential? {
         let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-        return (json?["claudeAiOauth"] as? [String: Any])?["accessToken"] as? String
+        guard let oauth = json?["claudeAiOauth"] as? [String: Any],
+              let token = oauth["accessToken"] as? String else { return nil }
+        // expiresAt vem em milissegundos desde 1970.
+        let expires = (oauth["expiresAt"] as? NSNumber).map { Date(timeIntervalSince1970: $0.doubleValue / 1000) }
+        return Credential(token: token, expiresAt: expires)
     }
 
     private static func date(_ v: Any?) -> Date? {

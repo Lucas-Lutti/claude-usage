@@ -171,6 +171,16 @@ O Claude Code guarda o login no Keychain do macOS (item "Claude Code-credentials
 
 Sem esse login (por exemplo, se você nunca entrou no Claude Code) ou com a opção desligada, o app usa a estimativa local e não toca no Keychain.
 
+#### Quando o login vence
+
+O login do Claude Code vale algumas horas e é renovado pelo próprio Claude Code quando você o usa. O app sabe o horário do vencimento e, logo depois dele, lê o login de novo — se o Claude Code já renovou, nada muda para você. Se ainda estiver vencido:
+
+- aparece uma notificação e um aviso no painel, com duas escolhas:
+  - **Já renovei** — depois de abrir o Claude Code e mandar qualquer mensagem, volta para a % exata;
+  - **Usar estimativa nesta janela** — segue com a estimativa até o reset, sem novos avisos;
+- se você usar o Claude Code depois disso, o app tenta a % exata de novo sozinho (no máximo a cada 5 min);
+- no reset da janela, o app tenta de novo e, se o login continuar vencido, pergunta outra vez.
+
 ## Abre junto com o Claude Code
 
 Na primeira execução, se encontrar a pasta `~/.claude`, o app adiciona este hook em `~/.claude/settings.json`:

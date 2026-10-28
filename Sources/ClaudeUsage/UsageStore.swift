@@ -14,12 +14,19 @@ final class UsageStore: ObservableObject {
     @Published private(set) var official: OfficialUsage?
     @Published private(set) var isScanning = false
     @Published private(set) var officialDenied = false
+    /// Login do Claude venceu e a pessoa ainda não escolheu o que fazer (mostra o aviso no painel).
+    @Published private(set) var officialExpired = false
+    /// A pessoa escolheu seguir com a estimativa até este horário (reset da janela).
+    @Published private(set) var estimateUntil: Date?
 
     let settings: Settings
     private let scanner = TranscriptScanner()
     private let api = OfficialUsageClient()
     private var lastOfficialFetch = Date.distantPast
     private var notifiedWindow: Date?
+    /// Quando o vencimento foi percebido; enquanto houver valor, a % oficial fica em pausa.
+    private var expiredSince: Date?
+    private var expiryNotified = false
 
     init(settings: Settings) { self.settings = settings }
 
@@ -42,13 +49,26 @@ final class UsageStore: ObservableObject {
                     self.snapshot = snap
                     self.isScanning = false
                     self.checkNotification()
+                    self.retryIfClaudeWasUsed()
                 }
             }
         }
 
+        // Escolheu a estimativa até o reset: passado o reset, tenta a % exata de novo (e pergunta outra vez se precisar).
+        var force = force
+        if let until = estimateUntil, Date() >= until {
+            estimateUntil = nil
+            expiredSince = nil
+            expiryNotified = false
+            force = true
+        }
+        // Com o login vencido, a % oficial fica em pausa até um gatilho (botão, reset ou uso do Claude Code),
+        // para não ficar relendo o Keychain (o que pode pedir a senha).
+        let paused = estimateUntil != nil || (expiredSince != nil && !force)
+
         // Também consulta logo depois do reset da janela, sem esperar o intervalo de 60 s.
         let resetPassed = official?.fiveHourReset.map { $0 <= Date() && lastOfficialFetch < $0 } ?? false
-        if settings.useOfficialAPI, settings.onboarded,
+        if settings.useOfficialAPI, settings.onboarded, !paused,
            force || resetPassed || Date().timeIntervalSince(lastOfficialFetch) >= 60 {
             lastOfficialFetch = Date()
             Task {
@@ -58,7 +78,13 @@ final class UsageStore: ObservableObject {
                 switch result {
                 case .usage(let usage):
                     self.official = usage
+                    self.expiredSince = nil
+                    self.expiryNotified = false
+                    self.officialExpired = false
                     self.checkNotification()
+                case .expired:
+                    self.official = nil
+                    self.handleExpired()
                 case .noLogin: self.official = nil
                 case .denied:
                     // Desliga a opção (fica salvo), para o macOS não pedir a senha a cada abertura do app.
@@ -73,6 +99,45 @@ final class UsageStore: ObservableObject {
         } else if !settings.useOfficialAPI {
             official = nil
         }
+    }
+
+    // MARK: Login vencido
+
+    private func handleExpired() {
+        if expiredSince == nil { expiredSince = Date() }
+        guard estimateUntil == nil else { return }
+        officialExpired = true
+        guard !expiryNotified, settings.notify else { return }
+        expiryNotified = true
+        let content = UNMutableNotificationContent()
+        content.title = "Login do Claude venceu"
+        content.body = "Abra o Claude Code para renovar e voltar à % exata, ou siga com a estimativa até o reset."
+        UNUserNotificationCenter.current().add(
+            UNNotificationRequest(identifier: "login-expired", content: content, trigger: nil))
+    }
+
+    /// Usar o Claude Code renova o login: se houver resposta nova depois do vencimento, tenta de novo sozinho.
+    private func retryIfClaudeWasUsed() {
+        guard let since = expiredSince, estimateUntil == nil,
+              Date().timeIntervalSince(since) >= 300,   // no máximo uma tentativa a cada 5 min
+              let last = snapshot.entries.last?.timestamp, last > since else { return }
+        expiredSince = Date()   // uma tentativa por novo uso
+        refresh(force: true)
+    }
+
+    /// "Já renovei": lê o Keychain de novo agora.
+    func retryOfficialNow() {
+        estimateUntil = nil
+        Task {
+            await api.resetAccess()
+            refresh(force: true)
+        }
+    }
+
+    /// "Usar estimativa nesta janela": para de avisar até o reset; aí tenta (e pergunta) de novo.
+    func useEstimateThisWindow() {
+        estimateUntil = activeBlock?.end ?? Date().addingTimeInterval(Block.duration)
+        officialExpired = false
     }
 
     /// Boas-vindas, etapa 1: pede (ou não) a permissão de notificação e segue para a etapa do Keychain.
@@ -97,8 +162,14 @@ final class UsageStore: ObservableObject {
 
     /// Chamado ao ligar/desligar a % oficial. Ao ligar, libera uma nova tentativa de acesso ao Keychain.
     func officialOptionChanged() {
-        guard settings.useOfficialAPI else { refresh(); return }
+        guard settings.useOfficialAPI else {
+            officialExpired = false
+            refresh()
+            return
+        }
         officialDenied = false
+        expiredSince = nil
+        estimateUntil = nil
         Task {
             await api.resetAccess()
             refresh(force: true)
