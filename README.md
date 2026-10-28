@@ -73,16 +73,19 @@ open /Applications/ClaudeUsage.app
 
 ## Primeiro uso
 
-Ao abrir pela primeira vez, o painel mostra uma tela de boas-vindas explicando os acessos que o app vai pedir:
+Ao abrir pela primeira vez, o painel mostra boas-vindas em etapas, explicando cada acesso antes de o macOS pedir:
 
-<p align="center"><img src="docs/images/painel-boas-vindas.png" width="360" alt="Tela de boas-vindas"></p>
+| Boas-vindas | Etapa 1 · Notificações | Etapa 2 · % exata |
+| --- | --- | --- |
+| ![Boas-vindas](docs/images/painel-boas-vindas.png) | ![Notificações](docs/images/painel-boas-vindas-notificacoes.png) | ![Keychain](docs/images/painel-boas-vindas-keychain.png) |
 
 
 1. O ícone aparece na barra de menus (o app não tem janela nem ícone no Dock).
-2. Em **Continuar**, o macOS pede (um de cada vez) permissão para notificações e a sua senha para o app ler o login do Claude Code e mostrar a [% oficial](#-oficial-padrão). Escolha **Sempre Permitir**. Se negar — ou escolher **Usar só a estimativa local** — o app usa a estimativa local.
-3. O app adiciona um hook ao Claude Code para abrir junto com ele — veja [abaixo](#abre-junto-com-o-claude-code).
-4. Sem a % oficial, escolha o seu plano em **Personalizar → Plano** ou ajuste o limite (veja [Como funciona](#o-limite-é-uma-estimativa)).
-5. Opcional: ligue **Abrir ao iniciar sessão** para ele subir com o Mac.
+2. **Etapa 1:** o macOS pergunta se o app pode mostrar notificações (sem senha).
+3. **Etapa 2:** o macOS pede a senha do Mac para o app ler o login do Claude Code e mostrar a [% oficial](#-oficial-padrão). Escolha **Sempre Permitir** — pode aparecer um segundo pedido logo depois, que é o macOS confirmando o "Sempre Permitir". Se negar, ou escolher **Usar só a estimativa local**, o app usa a estimativa local.
+4. O app adiciona um hook ao Claude Code para abrir junto com ele — veja [abaixo](#abre-junto-com-o-claude-code).
+5. Sem a % oficial, escolha o seu plano em **Personalizar → Plano** ou ajuste o limite (veja [Como funciona](#o-limite-é-uma-estimativa)).
+6. Opcional: ligue **Abrir ao iniciar sessão** para ele subir com o Mac.
 
 ## Lendo o ícone
 

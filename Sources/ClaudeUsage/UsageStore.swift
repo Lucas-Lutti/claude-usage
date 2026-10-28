@@ -3,6 +3,11 @@ import UserNotifications
 
 enum UsageSource { case official, local }
 
+extension Notification.Name {
+    /// Pede para o app abrir o painel (usado pelas boas-vindas depois de um pedido do sistema).
+    static let showUsagePanel = Notification.Name("ClaudeUsage.showUsagePanel")
+}
+
 @MainActor
 final class UsageStore: ObservableObject {
     @Published private(set) var snapshot = UsageSnapshot()
@@ -70,15 +75,24 @@ final class UsageStore: ObservableObject {
         }
     }
 
-    /// Fim da tela de boas-vindas: pede um acesso de cada vez (primeiro notificações, depois o Keychain,
-    /// que é lido na primeira consulta da % oficial).
+    /// Boas-vindas, etapa 1: pede (ou não) a permissão de notificação e segue para a etapa do Keychain.
+    /// O painel pode fechar enquanto o macOS pergunta, então ele é reaberto na etapa seguinte.
+    func onboardingNotifications(allow: Bool) {
+        settings.notify = allow
+        guard allow else { settings.onboardingStep = 2; return }
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in
+            Task { @MainActor in
+                self.settings.onboardingStep = 2
+                NotificationCenter.default.post(name: .showUsagePanel, object: nil)
+            }
+        }
+    }
+
+    /// Boas-vindas, etapa 2: a primeira consulta da % oficial lê o Keychain (é aí que o macOS pede a senha).
     func finishOnboarding(useOfficial: Bool) {
         settings.useOfficialAPI = useOfficial
         settings.onboarded = true
-        guard settings.notify else { refresh(force: true); return }
-        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in
-            Task { @MainActor in self.refresh(force: true) }
-        }
+        refresh(force: true)
     }
 
     /// Chamado ao ligar/desligar a % oficial. Ao ligar, libera uma nova tentativa de acesso ao Keychain.

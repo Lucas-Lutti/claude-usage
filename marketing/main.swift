@@ -224,7 +224,11 @@ MainActor.assumeIsolated {
 
     // Tela de boas-vindas (primeira abertura) e, depois, as telas normais.
     settings.onboarded = false
-    let boasVindas = capture(PopoverView().environmentObject(store).environmentObject(settings), dark: true)
+    var boasVindas: [NSImage] = []
+    for step in 0...2 {
+        settings.onboardingStep = step
+        boasVindas.append(capture(PopoverView().environmentObject(store).environmentObject(settings), dark: true))
+    }
     settings.onboarded = true
 
     @MainActor func popover(tab: Int, dark: Bool) -> NSImage {
@@ -236,7 +240,9 @@ MainActor.assumeIsolated {
 
     // Telas soltas para o README (fundo transparente).
     for (img, name) in [(usoClaro, "painel-uso-claro.png"), (usoEscuro, "painel-uso-escuro.png"),
-                        (personalizar, "painel-personalizar.png"), (boasVindas, "painel-boas-vindas.png")] {
+                        (personalizar, "painel-personalizar.png"), (boasVindas[0], "painel-boas-vindas.png"),
+                        (boasVindas[1], "painel-boas-vindas-notificacoes.png"),
+                        (boasVindas[2], "painel-boas-vindas-keychain.png")] {
         save(Card(image: img).padding(40), width: 420, height: img.size.height * 340 / img.size.width + 80,
              pixelWidth: 840, name)
     }

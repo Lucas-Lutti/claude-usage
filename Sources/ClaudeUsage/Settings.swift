@@ -71,6 +71,7 @@ final class Settings: ObservableObject {
     @AppStorage("hookSetupDone") var hookSetupDone = false
     /// Tela de boas-vindas vista: só depois dela o app pede permissões (notificação e Keychain).
     @AppStorage("onboarded") var onboarded = false
+    @AppStorage("onboardingStep") var onboardingStep = 0
 
     func level(usedPercent p: Double) -> UsageLevel {
         p >= criticalPercent ? .critical : p >= warnPercent ? .warn : .ok

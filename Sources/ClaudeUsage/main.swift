@@ -22,6 +22,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
 
         popover.behavior = .transient
         popover.delegate = self
+        NotificationCenter.default.addObserver(forName: .showUsagePanel, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, !self.popover.isShown else { return }
+                self.togglePopover()
+            }
+        }
 
         store.objectWillChange.merge(with: settings.objectWillChange)
             .debounce(for: .milliseconds(30), scheduler: RunLoop.main)

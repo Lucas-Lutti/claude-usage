@@ -360,42 +360,78 @@ private struct LevelBar: View {
 
 // MARK: - Boas-vindas
 
-/// Primeira abertura: explica os pedidos do sistema antes de eles aparecerem.
+/// Primeira abertura, em etapas: cada pedido do sistema é explicado logo antes de aparecer.
 private struct WelcomeView: View {
     @EnvironmentObject var store: UsageStore
+    @EnvironmentObject var settings: Settings
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Bem-vindo ao Claude Usage").font(.title3.weight(.semibold))
-            Text("O ícone na barra mostra quanto ainda resta da sua janela de 5h do Claude.")
-                .foregroundStyle(.secondary)
-
-            item("lock.shield", "% exata",
-                 "O app lê o login do Claude Code no Keychain. O macOS vai pedir a sua senha: escolha “Sempre Permitir”.")
-            item("bell.badge", "Notificações",
-                 "Um aviso quando a janela entrar no vermelho.")
-
-            VStack(spacing: 8) {
-                Button { store.finishOnboarding(useOfficial: true) } label: {
-                    Text("Continuar").frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent).controlSize(.large)
-                Button("Usar só a estimativa local") { store.finishOnboarding(useOfficial: false) }
-                    .buttonStyle(.borderless)
+            switch settings.onboardingStep {
+            case 0: intro
+            case 1: notifications
+            default: keychain
             }
-            Text("Dá para mudar tudo depois em Personalizar.")
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
         }
     }
 
-    private func item(_ icon: String, _ title: String, _ text: String) -> some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: icon).font(.title3).foregroundStyle(.green).frame(width: 24)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title).font(.callout.weight(.semibold))
-                Text(text).font(.callout).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
+    private var intro: some View {
+        Group {
+            Text("Bem-vindo ao Claude Usage").font(.title3.weight(.semibold))
+            Text("O ícone na barra mostra quanto ainda resta da sua janela de 5h do Claude.")
+                .foregroundStyle(.secondary)
+            Text("Antes de começar, o app vai pedir duas permissões. Vou explicar cada uma antes de o macOS perguntar.")
+                .font(.callout).foregroundStyle(.secondary)
+            primary("Começar") { settings.onboardingStep = 1 }
+        }
+    }
+
+    private var notifications: some View {
+        Group {
+            stepHeader(1, "Notificações", icon: "bell.badge")
+            Text("Para avisar quando a janela entrar no vermelho, o app precisa poder mostrar notificações.")
+            Text("O macOS vai perguntar se o Claude Usage pode enviar notificações. Isso não pede senha.")
+                .font(.callout).foregroundStyle(.secondary)
+            primary("Permitir notificações") { store.onboardingNotifications(allow: true) }
+            secondary("Agora não") { store.onboardingNotifications(allow: false) }
+        }
+    }
+
+    private var keychain: some View {
+        Group {
+            stepHeader(2, "% exata", icon: "lock.shield")
+            Text("O Claude Code guarda o seu login no Keychain do macOS. Lendo esse login, o app mostra a mesma % do comando /usage.")
+            VStack(alignment: .leading, spacing: 6) {
+                Text("O macOS vai pedir a senha do seu Mac:").font(.callout.weight(.semibold))
+                Text("1. Digite a senha e clique em “Sempre Permitir”.").font(.callout)
+                Text("2. Pode aparecer um segundo pedido logo em seguida: é o macOS confirmando o “Sempre Permitir”. Digite a senha de novo.")
+                    .font(.callout)
+            }
+            .foregroundStyle(.secondary)
+            .fixedSize(horizontal: false, vertical: true)
+            Text("Depois disso ele não pergunta mais (só se o app for atualizado).")
+                .font(.caption).foregroundStyle(.secondary)
+            primary("Permitir acesso") { store.finishOnboarding(useOfficial: true) }
+            secondary("Usar só a estimativa local") { store.finishOnboarding(useOfficial: false) }
+        }
+    }
+
+    private func stepHeader(_ n: Int, _ title: String, icon: String) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon).font(.title2).foregroundStyle(.green)
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Etapa \(n) de 2").font(.caption).foregroundStyle(.secondary)
+                Text(title).font(.title3.weight(.semibold))
             }
         }
+    }
+
+    private func primary(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) { Text(title).frame(maxWidth: .infinity) }
+            .buttonStyle(.borderedProminent).controlSize(.large)
+    }
+
+    private func secondary(_ title: String, action: @escaping () -> Void) -> some View {
+        Button(title, action: action).buttonStyle(.borderless).frame(maxWidth: .infinity)
     }
 }
