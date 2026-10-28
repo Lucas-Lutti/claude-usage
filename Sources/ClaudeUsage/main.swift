@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import SwiftUI
+import UserNotifications
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
@@ -30,10 +31,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
             .store(in: &cancellables)
 
+        // A opção já vem ligada, então a permissão precisa ser pedida aqui (o macOS só pergunta uma vez).
+        if settings.notify {
+            UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound]) { _, _ in }
+        }
+
         // Na primeira execução, passa a abrir junto com o Claude Code (dá para desligar em Personalizar).
-        if !settings.hookSetupDone, ClaudeHook.claudeCodeFound {
-            try? ClaudeHook.install()
-            settings.hookSetupDone = true
+        // Fora da thread principal: descobrir a pasta do Claude pode consultar o shell do usuário.
+        // Só marca como feito se der certo; com settings.json inválido, tenta de novo na próxima abertura.
+        if !settings.hookSetupDone {
+            DispatchQueue.global(qos: .utility).async {
+                let ok = ClaudeHook.claudeCodeFound && (try? ClaudeHook.install()) != nil
+                if ok { DispatchQueue.main.async { self.settings.hookSetupDone = true } }
+            }
         }
 
         updateButton()

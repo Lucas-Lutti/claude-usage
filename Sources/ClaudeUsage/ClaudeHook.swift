@@ -7,13 +7,7 @@ enum ClaudeHook {
     /// A saída do hook vira contexto da sessão, por isso é descartada; `|| true` garante que nunca falhe.
     static var command: String { "open -g -b \(bundleID) >/dev/null 2>&1 || true" }
 
-    static var claudeDir: URL {
-        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"],
-           let first = env.split(separator: ",").first {
-            return URL(fileURLWithPath: String(first))
-        }
-        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".claude")
-    }
+    static var claudeDir: URL { ClaudePaths.mainDir }
     static var settingsURL: URL { claudeDir.appendingPathComponent("settings.json") }
 
     /// Claude Code instalado/usado nesta máquina?
@@ -69,13 +63,15 @@ enum ClaudeHook {
 
         let fm = FileManager.default
         try fm.createDirectory(at: claudeDir, withIntermediateDirectories: true)
+        // Se o settings.json for um link simbólico (dotfiles), grava no arquivo real e mantém o link.
+        let target = settingsURL.resolvingSymlinksInPath()
         // Cópia de segurança do arquivo original antes da primeira alteração.
         let backup = claudeDir.appendingPathComponent("settings.json.claudeusage-backup")
-        if fm.fileExists(atPath: settingsURL.path), !fm.fileExists(atPath: backup.path) {
-            try? fm.copyItem(at: settingsURL, to: backup)
+        if fm.fileExists(atPath: target.path), !fm.fileExists(atPath: backup.path) {
+            try? fm.copyItem(at: target, to: backup)
         }
         let data = try JSONSerialization.data(withJSONObject: json,
                                               options: [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes])
-        try data.write(to: settingsURL, options: .atomic)
+        try data.write(to: target, options: .atomic)
     }
 }

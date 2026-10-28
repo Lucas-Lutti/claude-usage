@@ -197,7 +197,9 @@ private struct UsageTab: View {
 private struct SettingsTab: View {
     @EnvironmentObject var store: UsageStore
     @EnvironmentObject var settings: Settings
-    @State private var launchAtLogin = SMAppService.mainApp.status == .enabled
+    @State private var loginStatus = SMAppService.mainApp.status
+    @State private var launchAtLogin = [.enabled, .requiresApproval].contains(SMAppService.mainApp.status)
+    @State private var loginError: String?
     @State private var openWithClaude = ClaudeHook.isInstalled
     @State private var hookError: String?
 
@@ -239,8 +241,24 @@ private struct SettingsTab: View {
                     }
                 Toggle("Abrir ao iniciar sessão", isOn: $launchAtLogin)
                     .onChange(of: launchAtLogin) { _, on in
-                        try? on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
+                        do {
+                            try on ? SMAppService.mainApp.register() : SMAppService.mainApp.unregister()
+                            loginError = nil
+                        } catch {
+                            loginError = error.localizedDescription
+                        }
+                        loginStatus = SMAppService.mainApp.status
+                        launchAtLogin = [.enabled, .requiresApproval].contains(loginStatus)
                     }
+                if loginStatus == .requiresApproval {
+                    HStack {
+                        Text("Falta aprovar em Itens de Início.").font(.caption).foregroundStyle(.orange)
+                        Spacer()
+                        Button("Abrir Ajustes") { SMAppService.openSystemSettingsLoginItems() }
+                            .controlSize(.small)
+                    }
+                }
+                if let loginError { Text(loginError).font(.caption).foregroundStyle(.red) }
                 Toggle("Abrir junto com o Claude Code", isOn: $openWithClaude)
                     .help("Adiciona um hook SessionStart em ~/.claude/settings.json")
                     .onChange(of: openWithClaude) { _, on in

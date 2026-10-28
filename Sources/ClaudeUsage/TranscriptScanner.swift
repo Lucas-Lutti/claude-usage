@@ -17,33 +17,35 @@ final class TranscriptScanner: @unchecked Sendable {
     }()
     private let iso = ISO8601DateFormatter()
 
-    private var roots: [URL] {
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        var r = [home.appendingPathComponent(".claude/projects"),
-                 home.appendingPathComponent(".config/claude/projects")]
-        if let env = ProcessInfo.processInfo.environment["CLAUDE_CONFIG_DIR"] {
-            for p in env.split(separator: ",") {
-                r.append(URL(fileURLWithPath: String(p)).appendingPathComponent("projects"))
-            }
-        }
-        return r
-    }
+    // Arquivos recentes (caminho → projeto) e data de cada pasta de projeto na última olhada.
+    private var recentFiles: [String: String] = [:]
+    private var dirDates: [String: Date] = [:]
+    private var lastFullScan = Date.distantPast
+    private let fullScanInterval: TimeInterval = 120
+    private let fileKeys: Set<URLResourceKey> = [.contentModificationDateKey, .fileSizeKey]
 
     /// Deve ser chamado dentro de `queue`.
     func scan(now: Date = Date()) -> UsageSnapshot {
         let cutoff = now.addingTimeInterval(-retention)
-        let fm = FileManager.default
-        let keys: [URLResourceKey] = [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]
 
-        for root in roots {
-            guard let en = fm.enumerator(at: root, includingPropertiesForKeys: keys,
-                                         options: [.skipsHiddenFiles]) else { continue }
-            for case let url as URL in en where url.pathExtension == "jsonl" {
-                guard let v = try? url.resourceValues(forKeys: Set(keys)),
-                      let mod = v.contentModificationDate, mod >= cutoff,
-                      let size = v.fileSize else { continue }
-                read(url, size: UInt64(size), fallbackProject: projectDir(of: url, root: root))
+        // A varredura completa (todos os arquivos, inclusive antigos) roda a cada 2 min. No meio tempo,
+        // só pastas de projeto cuja data mudou (sessão nova cria arquivo) e os arquivos já recentes.
+        let full = now.timeIntervalSince(lastFullScan) >= fullScanInterval
+        if full {
+            lastFullScan = now
+            recentFiles = [:]
+        }
+        for root in ClaudePaths.projectRoots {
+            for (dir, date) in projectDirs(in: root) where full || dirDates[dir.path] != date {
+                dirDates[dir.path] = date
+                collectRecent(in: dir, cutoff: cutoff)
             }
+        }
+
+        for (path, project) in recentFiles {
+            let url = URL(fileURLWithPath: path)
+            guard let v = try? url.resourceValues(forKeys: fileKeys), let size = v.fileSize else { continue }
+            read(url, size: UInt64(size), fallbackProject: project)
         }
 
         entries = entries.filter { $0.value.timestamp >= cutoff }
@@ -54,9 +56,25 @@ final class TranscriptScanner: @unchecked Sendable {
                              filesTracked: offsets.count)
     }
 
-    private func projectDir(of url: URL, root: URL) -> String {
-        let rel = url.path.dropFirst(root.path.count).split(separator: "/")
-        return rel.first.map(String.init) ?? "?"
+    private func projectDirs(in root: URL) -> [(URL, Date?)] {
+        let items = (try? FileManager.default.contentsOfDirectory(
+            at: root, includingPropertiesForKeys: [.isDirectoryKey, .contentModificationDateKey],
+            options: [.skipsHiddenFiles])) ?? []
+        return items.compactMap { url in
+            let v = try? url.resourceValues(forKeys: [.isDirectoryKey, .contentModificationDateKey])
+            return v?.isDirectory == true ? (url, v?.contentModificationDate) : nil
+        }
+    }
+
+    /// Guarda os .jsonl modificados dentro do período de retenção (inclui subpastas de subagentes).
+    private func collectRecent(in dir: URL, cutoff: Date) {
+        guard let en = FileManager.default.enumerator(at: dir, includingPropertiesForKeys: Array(fileKeys),
+                                                      options: [.skipsHiddenFiles]) else { return }
+        for case let url as URL in en where url.pathExtension == "jsonl" {
+            guard let mod = (try? url.resourceValues(forKeys: fileKeys))?.contentModificationDate,
+                  mod >= cutoff else { continue }
+            recentFiles[url.path] = dir.lastPathComponent
+        }
     }
 
     private func read(_ url: URL, size: UInt64, fallbackProject: String) {

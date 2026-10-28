@@ -58,7 +58,7 @@ Um app leve de barra de menus para macOS que mostra quanto ainda resta da sua ja
 
 ### Opção 2 — Compilar a partir do código
 
-Requer Xcode ou as Command Line Tools (`xcode-select --install`).
+Requer o Xcode ou só as Command Line Tools (`xcode-select --install`). Com o Xcode o app sai universal (Intel + Apple Silicon); só com as Command Line Tools, sai para a arquitetura do seu Mac.
 
 ```bash
 git clone https://github.com/Lucas-Lutti/claude-usage.git

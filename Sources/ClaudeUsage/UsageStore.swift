@@ -26,16 +26,17 @@ final class UsageStore: ObservableObject {
     // MARK: Atualização
 
     func refresh(force: Bool = false) {
-        guard !isScanning else { return }
-        isScanning = true
-        let scanner = scanner
-        scanner.queue.async {
-            let snap = scanner.scan()
-            DispatchQueue.main.async { [weak self] in
-                guard let self else { return }
-                self.snapshot = snap
-                self.isScanning = false
-                self.checkNotification()
+        if !isScanning {
+            isScanning = true
+            let scanner = scanner
+            scanner.queue.async {
+                let snap = scanner.scan()
+                DispatchQueue.main.async { [weak self] in
+                    guard let self else { return }
+                    self.snapshot = snap
+                    self.isScanning = false
+                    self.checkNotification()
+                }
             }
         }
 
@@ -44,8 +45,13 @@ final class UsageStore: ObservableObject {
             lastOfficialFetch = Date()
             Task {
                 if force { await api.reset() }
-                let result = await api.fetch()
-                self.official = result
+                switch await api.fetch() {
+                case .usage(let usage): self.official = usage
+                case .noLogin: self.official = nil
+                case .failed:
+                    // Mantém o último valor por até 10 min, para a % não alternar entre as fontes.
+                    if let o = self.official, Date().timeIntervalSince(o.fetchedAt) > 600 { self.official = nil }
+                }
             }
         } else if !settings.useOfficialAPI {
             official = nil
