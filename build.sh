@@ -7,7 +7,7 @@
 #   ./build.sh --zip      também gera build/ClaudeUsage.zip (para publicar uma release)
 set -e
 cd "$(dirname "$0")"
-VERSION="1.0.0"
+VERSION="1.1.0"
 
 # O build universal depende do xcbuild, que só vem com o Xcode.
 if [[ "$(xcode-select -p 2>/dev/null)" == *Xcode*.app* ]]; then
@@ -20,8 +20,9 @@ else
 fi
 APP=build/ClaudeUsage.app
 rm -rf "$APP"
-mkdir -p "$APP/Contents/MacOS"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/"
 cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -30,6 +31,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
   <key>CFBundleDisplayName</key><string>Claude Usage</string>
   <key>CFBundleIdentifier</key><string>local.claudeusage</string>
   <key>CFBundleExecutable</key><string>ClaudeUsage</string>
+  <key>CFBundleIconFile</key><string>AppIcon</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleShortVersionString</key><string>$VERSION</string>
   <key>CFBundleVersion</key><string>$VERSION</string>

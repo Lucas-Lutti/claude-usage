@@ -1,3 +1,5 @@
+<p align="center"><img src="docs/images/icone.png" width="128" alt="Ícone do Claude Usage"></p>
+
 # Claude Usage
 
 **Sua janela de 5h do Claude, ao vivo na barra de menus do Mac — de 100% até 0%.**
@@ -240,7 +242,8 @@ Sources/ClaudeUsage/
 ├── StatusIcon.swift           # desenho dos ícones
 ├── PopoverView.swift          # painel (SwiftUI)
 └── Settings.swift             # preferências
-marketing/                     # gerador das imagens de docs/images
+Resources/AppIcon.icns         # ícone do app
+marketing/                     # geradores das imagens de docs/images e do ícone
 ```
 
 ```bash
@@ -248,6 +251,7 @@ swift build                                                    # compila para de
 ./build.sh                                                     # gera o .app universal
 build/ClaudeUsage.app/Contents/MacOS/ClaudeUsage --dump        # imprime a janela atual no terminal
 ./marketing/render.sh                                          # regenera as imagens com dados de demonstração
+./marketing/icon.sh [escuro|cores|quente]                      # regenera o ícone do app (Resources/AppIcon.icns)
 ```
 
 Contribuições são bem-vindas — abra uma issue ou um pull request.
